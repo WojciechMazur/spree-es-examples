@@ -1,0 +1,218 @@
+@endpoint = localhost:9200
+
+
+###
+
+### Setup
+POST http://{{endpoint}}/_aliases?pretty
+Content-Type: application/json
+
+{
+  "actions" : [
+    { "add": { "index" : "kibana_sample_data_flights",  "alias": "flights"}},
+    { "add": { "index": "kibana_sample_data_ecommerce", "alias": "shop"}}
+  ]
+}
+
+### 
+GET http://{{endpoint}}/_cat/aliases?v
+
+
+###
+GET http://{{endpoint}}/flights/_mappings
+
+
+### Limiting result
+GET http://{{endpoint}}/flights/_search
+Content-Type: application/json
+
+{
+ "query": {
+   "match_all": {}
+ }
+  , "fields": [
+    "FlightNUM",
+    "Origin",
+    "Dest",
+    "Carrier",
+    "timestamp"
+  ]
+  , "_source": false
+  ,"size": 10
+  ,"from": 0
+}
+
+### Sorting result
+GET http://{{endpoint}}/flights/_search
+Content-Type: application/json
+
+{
+ "query": {
+   "match_all": {}
+ }
+, "sort": [
+  {"timestamp": "desc"},
+  {"Origin": "asc"},
+  {"Dest": "asc"}
+]
+}
+
+### Offset Pagination
+GET http://{{endpoint}}/flights/_search
+Content-Type: application/json
+
+{
+ "query": {
+   "match_all": {}
+ },
+ "from": 10,
+ "size": 2
+}
+
+### Cursor pagination
+GET http://{{endpoint}}/_search
+Content-Type: application/json
+
+{
+ "query": {
+   "match_all": {}
+ },
+ "fields": [
+   "timestamp",
+   "Origin",
+   "Dest",
+   "FlightNum"
+ ],
+ "_source": false,
+"sort": [
+  {"timestamp": "desc"},
+  {"Origin": "asc"},
+  {"Dest": "asc"}
+],
+"size": 5
+ ,"search_after": [
+   1615765812000,
+   "London Gatwick Airport",
+   "Shanghai Hongqiao International Airport"
+  ]
+ , "pit": {
+     "id": "i6-xAwEaa2liYW5hX3NhbXBsZV9kYXRhX2ZsaWdodHMWOVQ5VTRiUmRSa3VWb1o3eDBOdGhxdwAWTl9zVVQteG1Ua3FDNFZNZU8tbVdUUQAAAAAAAAABwhZ3VVN6NlFJRVJQLWNOVVJzZG9uUHNRARY5VDlVNGJSZFJrdVZvWjd4ME50aHF3AAA=",
+          "keep_alive": "1m"
+ }
+}
+
+### Create Point in Time
+POST http://{{endpoint}}/flights/_pit?keep_alive=5m
+
+
+### Term query
+GET http://{{endpoint}}/flights/_search
+Content-Type: application/json
+
+{
+ "query": {
+   "term": {
+     "OriginCountry": "PL"
+   }
+ }
+}
+
+### Range query
+GET http://{{endpoint}}/flights/_search
+Content-Type: application/json
+
+{
+ "query": {
+   "range": {
+     "DistanceKilometers": { "gte": 300, "lte": 3000}
+   }
+ }
+}
+
+### Complex (boolean) query
+GET http://{{endpoint}}/flights/_search
+Content-Type: application/json
+
+{
+ "query": {
+   "bool": {
+     "must": {
+      "range": {"DistanceKilometers": { "gte": 300, "lte": 3000}}
+     },
+     "must_not": {  
+        "range": {"AvgTicketPrice": { "gte": 500}}
+     },
+     "should": [
+       { "term": {"OriginCountry": "PL"}},
+       { "range": {"dayOfweek": { "gte": 0, "lt": 5}}},
+       { "term": {"FlightDelay": false}}
+     ]
+    , "filter": [
+      {"range": {"DistanceKilometers": {"gt": 0}}},
+      {"term": {"Cancelled": false}}
+    ],
+    "minimum_should_match": 2
+   }
+ }
+}
+
+###
+GET http://{{endpoint}}/shop/_mappings
+
+
+### Full-text search query
+GET http://{{endpoint}}/shop/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match": { 
+      "products.product_name": {
+        "query": "black or white T-shirt",
+        "operator": "and"
+      }
+    }
+  },
+  "fields": [
+    "products.product_name"
+  ],
+  "_source": false
+}
+
+### 
+GET http://{{endpoint}}/shop/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match_bool_prefix": { 
+      "products.product_name": {
+        "query": "Swimming"
+      }
+    }
+  },
+  "fields": [
+    "products.product_name"
+  ],
+  "_source": false
+}
+
+###
+# https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-simple-query-string-query.html
+GET http://{{endpoint}}/shop/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "simple_query_string" : {
+        # Look for documents containg dress or suite and NOT containing word black
+        "query": "(shirt | suite) + -black",
+        "fields": ["products.product_name"],
+        "default_operator": "and"
+    }
+  },
+  "fields": [
+    "products.product_name"
+  ],
+  "_source": false
+}

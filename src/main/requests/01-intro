@@ -1,0 +1,284 @@
+@endpoint = localhost:9200
+
+###
+GET http://{{endpoint}}/_cat/nodes?v
+###
+
+GET http://{{endpoint}}/_cat/aliases?v
+
+### Create index
+PUT http://{{endpoint}}/trips
+Content-Type: application/json
+
+{
+  "settings": {
+    "number_of_shards": 3,
+    "number_of_replicas": 2
+  },
+  "mappings": {
+    "dynamic": false,  // there is also strict throwing exception on unknown fields
+    "properties": {
+      "country": { 
+          "type": "keyword",
+          "boost": 4 
+          },
+      "city": { 
+          "type": "search_as_you_type"
+        }, 
+      "start": {
+          "type": "date",
+          "ignore_malformed": true
+          },
+      "end": { "type": "date"},
+      "photosTaken": {
+          "type": "integer",
+          "null_value": 0,
+          "index": false
+          },
+      "distanceCovered": {
+           "type" : "float",
+           "null_value": 0.0,
+           "meta": {
+               "unit": "km"
+           }
+      },
+      "distance_in_kilometers": {
+          "type": "alias",
+          "path": "distanceCovered"
+      },
+      "description": { "type": "text" }
+    }
+  }
+}
+
+### Get created mappings
+GET http://{{endpoint}}/trips/_mappings
+
+###
+GET http://{{endpoint}}/_cat/shards?v
+
+
+###
+
+POST http://{{endpoint}}/trips-123/_doc/mYS3cUr31d
+Content-Type: application/json
+
+{
+  "country": "Italy",
+  "started": "2020-02-14",
+  "ended": "2020-04-20",
+  "city" : "Venice",
+  "photosTaken" : 2173,
+  "distanceCovered": 83.4,
+  "description":"The name of the city, deriving from Latin forms Venetia and Venetiae, is most likely taken from Venetia et Histria, the Roman name of Regio X of Roman Italy, but applied to the coastal part of the region that remained under Roman Empire outside of Gothic, Lombard, and Frankish control."
+}
+
+###
+GET http://{{endpoint}}/trips/_doc/mYS3cUr31d
+Content-Type: application/json
+
+
+### Create new document
+POST http://{{endpoint}}/trips/_doc
+Content-Type: application/json
+
+{
+  "country": "Italy",
+  "started": "2019-06-16",
+  "ended": "2019-06-24",
+  "city" : ["Florence", "Sienna", "San Gimignano", "Voltera"],
+  "photosTaken" : 3542,
+  "distanceCovered": 484.0,
+  "description":"Tuscany is the second most popular Italian region for travellers in Italy.[7] The main tourist spots are Florence, Pisa, Castiglione della Pescaia, Grosseto and Siena.[8] The town of Castiglione della Pescaia is the most visited seaside destination in the region,[8] with seaside tourism accounting for approximately 40% of tourist arrivals. ",
+  "scootersUsed": 2
+}
+
+### Bulk create
+POST http://{{endpoint}}/_bulk
+Content-Type: application/json
+
+< ./01-intro-data-1.json
+
+
+###
+GET http://{{endpoint}}/_search?pretty
+Content-Type: application/json
+
+ {
+     "query": {
+         "term": {
+             "country": "Italy"
+         }
+     }
+ }
+
+
+### Updating single field
+POST http://{{endpoint}}/trips/_update/mYS3cUr31d
+Content-Type: application/json
+
+{
+  "doc": {
+    "city": ["Venice"],
+    "traveledByVaporetto": true
+  }
+}
+
+### Updating by scripts
+POST http://{{endpoint}}/trips/_update/mYS3cUr31d
+Content-Type: application/json
+
+{
+  "script": {
+    "source": "if (ctx._source.distanceCovered < 9000) { ctx._source.distanceCovered += params.increaseBy; ctx._source.remove(\"description\"); } else { ctx.op = 'none' } ",
+    "params": {
+      "increaseBy": 9000
+    }
+  }
+}
+
+#if (ctx._source.distanceCovered < 9000) { 
+#  ctx._source.distanceCovered += params.increaseBy; 
+#  ctx._source.remove(\"description\"); 
+# } else { ctx.op = 'none' } ",
+
+### 
+POST http://{{endpoint}}/trips/_doc/mYS3cUr31d?refresh
+Content-Type: application/json
+
+{
+  "country": "Italy",
+  "started": "2020-02-14",
+  "ended": "2020-04-20",
+  "city" : "Venice"
+}
+
+# https://www.elastic.co/guide/en/elasticsearch/reference/current/near-real-time.html
+
+
+
+### Setup index
+POST http://{{endpoint}}/_aliases?pretty
+Content-Type: application/json
+
+{
+  "actions" : [
+    { "add" : { "index" : "trips", "alias" : "my_trips" } },
+    { "add" : { "index" : "trips", "alias" : "italian_trips", "filter": {
+        "term": { "country": "Italy" }
+    } }}
+  ]
+}
+
+### Use alias
+GET http://{{endpoint}}/italian_trips/_search?pretty
+Content-Type: application/json
+
+###
+PUT http://{{endpoint}}/_index_template/trips_template
+Content-Type: application/json
+
+{
+  "index_patterns": ["trips-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 3
+    },
+    "mappings": {
+        "dynamic": false,  // there is also strict throwing exception on unknown fields
+        "properties": {
+        "country": { 
+            "type": "keyword",
+            "boost": 4 
+            },
+        "city": { 
+            "type": "search_as_you_type"
+            }, 
+        "start": {
+            "type": "date",
+            "ignore_malformed": true
+            },
+        "end": { "type": "date"},
+        "photosTaken": {
+            "type": "integer",
+            "null_value": 0,
+            "index": false
+            },
+        "distanceCovered": {
+            "type" : "float",
+            "null_value": 0.0,
+            "meta": {
+                "unit": "km"
+            }
+        },
+        "distance_in_kilometers": {
+            "type": "alias",
+            "path": "distanceCovered"
+        },
+        "description": { "type": "text" }
+        }
+    },
+    "aliases": {
+      "all_trips": { }
+    }
+  },
+  "priority": 200,
+  "version": 3,
+  "_meta": {
+    "description": "my custom"
+  }
+}
+
+
+### Automatic index creation
+POST http://{{endpoint}}/trips-2019/_doc
+Content-Type: application/json
+
+{
+  "country": "United Kingdom",
+  "started": "2019-06-16",
+  "ended": "2019-06-24",
+  "city" : "London"
+}
+
+
+###
+POST http://{{endpoint}}/_aliases?pretty
+Content-Type: application/json
+
+{
+  "actions" : [
+    { "add" : { "index" : "trips", "alias" : "all_trips" } },
+    { "add" : { "index" : "trips-2019", "alias" : "all_trips" }}
+  ]
+}
+
+###
+GET http://{{endpoint}}/all_trips/_search
+
+
+###  Delete single document
+DELETE http://{{endpoint}}/italian_trips/_doc/mYS3cUr31d
+
+### Delete by query
+POST http://{{endpoint}}/trips/_delete_by_query
+Content-Type: application/json
+
+{
+  "query": {
+    "range": {
+      # "photosTaken": { // won't work since this field is not indexed
+      #   "lt": 100 
+      # }
+     "distanceCovered": {
+       "lt": 20
+     }
+    }
+  }
+}
+
+###
+DELETE http://{{endpoint}}/trips
+
+###
+DELETE http://{{endpoint}}/trips-2019

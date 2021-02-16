@@ -1,0 +1,70 @@
+@endpoint = localhost:9200
+
+###
+GET http://{{endpoint}}/flights/_mappings
+
+###
+GET http://{{endpoint}}/flights/_search
+
+###
+GET http://{{endpoint}}/flights/_search 
+Content-Type: application/json
+
+{ 
+  "query": {
+   "bool": {
+     "filter": {"range": {"DistanceKilometers": {"gt": 0}}}
+   }
+ },
+  "aggs": {
+    "overall_avg_prive": {
+      "avg": {"field": "AvgTicketPrice"} 
+    },
+    "price_ranges": {
+      "range": {
+        "field": "AvgTicketPrice",
+        "ranges": [
+          {"to": 250, "key": "cheapest"},
+          {"from": 250, "to": 500},
+          {"from": 500, "to": 750},
+          {"from": 1000}
+        ]
+      },
+      "aggs": {
+        "avgDistance": {"avg": {"field": "DistanceKilometers"} },
+        "toCountries": {"cardinality": {"field": "DestCountry"}},
+        "toAirports": {"cardinality": {"field": "Dest"}},
+        "minDistance": {"min": {"field": "DistanceKilometers"} },
+        "maxDistance": {"max": {"field": "DistanceKilometers"} }
+
+      }
+    }
+  },
+  "size": 0 //we don't bother about documents sources
+}
+
+
+###
+GET http://{{endpoint}}/flights/_search 
+Content-Type: application/json
+
+{ 
+  "query": {
+   "bool": {
+     "filter": {"range": {"DistanceKilometers": {"gt": 0}}}
+   }
+ },
+  "aggs": {
+    "prices": {
+      "histogram": {
+        "field": "AvgTicketPrice",
+        "interval": 50
+      },
+      "aggs": {
+        "minDistance": {"min": {"field": "DistanceKilometers"} },
+        "maxDistance": {"max": {"field": "DistanceKilometers"} }
+      }
+    }
+  },
+  "size": 0 //we don't bother about documents sources
+}

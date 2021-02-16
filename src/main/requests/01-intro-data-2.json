@@ -1,0 +1,5 @@
+{"index": {"_index": "trips"} }
+{"country": "United Kingdom", "started": "2019-03-20", "ended": "2019-04-10", "city": "London", "photosTaken": 25, "distanceCovered": 48.5 }
+{"index": {"_index": "trips"} }
+{"country": "Sweden", "started": "2019-03-20", "ended": "2019-04-10", "city": "Oslo", "photosTaken": 25, "distanceCovered": 48.5 }
+
